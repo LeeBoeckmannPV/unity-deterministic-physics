@@ -1,5 +1,6 @@
 using System;
 using Unity.Burst;
+using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
@@ -64,7 +65,7 @@ namespace UnityS.Transforms
     // (or) PostRotation = PostRotationEulerYZX
     // (or) PostRotation = PostRotationEulerZXY
     // (or) PostRotation = PostRotationEulerZYX
-    public abstract class PostRotationEulerSystem : JobComponentSystem
+    public abstract partial class PostRotationEulerSystem : SystemBase
     {
         private EntityQuery m_Group;
 
@@ -101,15 +102,15 @@ namespace UnityS.Transforms
             [ReadOnly] public ComponentTypeHandle<PostRotationEulerZYX> PostRotationEulerZyxTypeHandle;
             public uint LastSystemVersion;
 
-            public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
-            {
-                if (chunk.Has(PostRotationEulerXyzTypeHandle))
+			public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask)
+			{
+                if (chunk.Has(ref PostRotationEulerXyzTypeHandle))
                 {
-                    if (!chunk.DidChange(PostRotationEulerXyzTypeHandle, LastSystemVersion))
+                    if (!chunk.DidChange(ref PostRotationEulerXyzTypeHandle, LastSystemVersion))
                         return;
 
-                    var chunkRotations = chunk.GetNativeArray(PostRotationTypeHandle);
-                    var chunkPostRotationEulerXYZs = chunk.GetNativeArray(PostRotationEulerXyzTypeHandle);
+                    var chunkRotations = chunk.GetNativeArray(ref PostRotationTypeHandle);
+                    var chunkPostRotationEulerXYZs = chunk.GetNativeArray(ref PostRotationEulerXyzTypeHandle);
                     for (var i = 0; i < chunk.Count; i++)
                     {
                         chunkRotations[i] = new PostRotation
@@ -118,13 +119,13 @@ namespace UnityS.Transforms
                         };
                     }
                 }
-                else if (chunk.Has(PostRotationEulerXzyTypeHandle))
+                else if (chunk.Has(ref PostRotationEulerXzyTypeHandle))
                 {
-                    if (!chunk.DidChange(PostRotationEulerXzyTypeHandle, LastSystemVersion))
+                    if (!chunk.DidChange(ref PostRotationEulerXzyTypeHandle, LastSystemVersion))
                         return;
 
-                    var chunkRotations = chunk.GetNativeArray(PostRotationTypeHandle);
-                    var chunkPostRotationEulerXZYs = chunk.GetNativeArray(PostRotationEulerXzyTypeHandle);
+                    var chunkRotations = chunk.GetNativeArray(ref PostRotationTypeHandle);
+                    var chunkPostRotationEulerXZYs = chunk.GetNativeArray(ref PostRotationEulerXzyTypeHandle);
                     for (var i = 0; i < chunk.Count; i++)
                     {
                         chunkRotations[i] = new PostRotation
@@ -133,13 +134,13 @@ namespace UnityS.Transforms
                         };
                     }
                 }
-                else if (chunk.Has(PostRotationEulerYxzTypeHandle))
+                else if (chunk.Has(ref PostRotationEulerYxzTypeHandle))
                 {
-                    if (!chunk.DidChange(PostRotationEulerYxzTypeHandle, LastSystemVersion))
+                    if (!chunk.DidChange(ref PostRotationEulerYxzTypeHandle, LastSystemVersion))
                         return;
 
-                    var chunkRotations = chunk.GetNativeArray(PostRotationTypeHandle);
-                    var chunkPostRotationEulerYXZs = chunk.GetNativeArray(PostRotationEulerYxzTypeHandle);
+                    var chunkRotations = chunk.GetNativeArray(ref PostRotationTypeHandle);
+                    var chunkPostRotationEulerYXZs = chunk.GetNativeArray(ref PostRotationEulerYxzTypeHandle);
                     for (var i = 0; i < chunk.Count; i++)
                     {
                         chunkRotations[i] = new PostRotation
@@ -148,13 +149,13 @@ namespace UnityS.Transforms
                         };
                     }
                 }
-                else if (chunk.Has(PostRotationEulerYzxTypeHandle))
+                else if (chunk.Has(ref PostRotationEulerYzxTypeHandle))
                 {
-                    if (!chunk.DidChange(PostRotationEulerYzxTypeHandle, LastSystemVersion))
+                    if (!chunk.DidChange(ref PostRotationEulerYzxTypeHandle, LastSystemVersion))
                         return;
 
-                    var chunkRotations = chunk.GetNativeArray(PostRotationTypeHandle);
-                    var chunkPostRotationEulerYZXs = chunk.GetNativeArray(PostRotationEulerYzxTypeHandle);
+                    var chunkRotations = chunk.GetNativeArray(ref PostRotationTypeHandle);
+                    var chunkPostRotationEulerYZXs = chunk.GetNativeArray(ref PostRotationEulerYzxTypeHandle);
                     for (var i = 0; i < chunk.Count; i++)
                     {
                         chunkRotations[i] = new PostRotation
@@ -163,13 +164,13 @@ namespace UnityS.Transforms
                         };
                     }
                 }
-                else if (chunk.Has(PostRotationEulerZxyTypeHandle))
+                else if (chunk.Has(ref PostRotationEulerZxyTypeHandle))
                 {
-                    if (!chunk.DidChange(PostRotationEulerZxyTypeHandle, LastSystemVersion))
+                    if (!chunk.DidChange(ref PostRotationEulerZxyTypeHandle, LastSystemVersion))
                         return;
 
-                    var chunkRotations = chunk.GetNativeArray(PostRotationTypeHandle);
-                    var chunkPostRotationEulerZXYs = chunk.GetNativeArray(PostRotationEulerZxyTypeHandle);
+                    var chunkRotations = chunk.GetNativeArray(ref PostRotationTypeHandle);
+                    var chunkPostRotationEulerZXYs = chunk.GetNativeArray(ref PostRotationEulerZxyTypeHandle);
                     for (var i = 0; i < chunk.Count; i++)
                     {
                         chunkRotations[i] = new PostRotation
@@ -178,13 +179,13 @@ namespace UnityS.Transforms
                         };
                     }
                 }
-                else if (chunk.Has(PostRotationEulerZyxTypeHandle))
+                else if (chunk.Has(ref PostRotationEulerZyxTypeHandle))
                 {
-                    if (!chunk.DidChange(PostRotationEulerZyxTypeHandle, LastSystemVersion))
+                    if (!chunk.DidChange(ref PostRotationEulerZyxTypeHandle, LastSystemVersion))
                         return;
 
-                    var chunkRotations = chunk.GetNativeArray(PostRotationTypeHandle);
-                    var chunkPostRotationEulerZYXs = chunk.GetNativeArray(PostRotationEulerZyxTypeHandle);
+                    var chunkRotations = chunk.GetNativeArray(ref PostRotationTypeHandle);
+                    var chunkPostRotationEulerZYXs = chunk.GetNativeArray(ref PostRotationEulerZyxTypeHandle);
                     for (var i = 0; i < chunk.Count; i++)
                     {
                         chunkRotations[i] = new PostRotation
@@ -196,7 +197,7 @@ namespace UnityS.Transforms
             }
         }
 
-        protected override JobHandle OnUpdate(JobHandle inputDependencies)
+        protected override void OnUpdate()
         {
             var job = new PostRotationEulerToPostRotation()
             {
@@ -208,8 +209,7 @@ namespace UnityS.Transforms
                 PostRotationEulerZxyTypeHandle = GetComponentTypeHandle<PostRotationEulerZXY>(true),
                 PostRotationEulerZyxTypeHandle = GetComponentTypeHandle<PostRotationEulerZYX>(true),
                 LastSystemVersion = LastSystemVersion
-            };
-            return job.Schedule(m_Group, inputDependencies);
+            }.ScheduleParallel(m_Group, Dependency);
         }
     }
 }

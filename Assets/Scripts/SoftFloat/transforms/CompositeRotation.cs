@@ -1,5 +1,6 @@
 using System;
 using Unity.Burst;
+using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
@@ -37,7 +38,7 @@ namespace UnityS.Transforms
     }
 
     // CompositeRotation = RotationPivotTranslation * RotationPivot * Rotation * PostRotation * RotationPivot^-1
-    public abstract class CompositeRotationSystem : JobComponentSystem
+    public abstract partial class CompositeRotationSystem : SystemBase
     {
         private EntityQuery m_Group;
 
@@ -51,18 +52,18 @@ namespace UnityS.Transforms
             public ComponentTypeHandle<CompositeRotation> CompositeRotationTypeHandle;
             public uint LastSystemVersion;
 
-            public void Execute(ArchetypeChunk chunk, int index, int entityOffset)
+            public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask)
             {
-                var chunkRotationPivotTranslations = chunk.GetNativeArray(RotationPivotTranslationTypeHandle);
-                var chunkRotations = chunk.GetNativeArray(RotationTypeHandle);
-                var chunkPostRotation = chunk.GetNativeArray(PostRotationTypeHandle);
-                var chunkRotationPivots = chunk.GetNativeArray(RotationPivotTypeHandle);
-                var chunkCompositeRotations = chunk.GetNativeArray(CompositeRotationTypeHandle);
+                var chunkRotationPivotTranslations = chunk.GetNativeArray(ref RotationPivotTranslationTypeHandle);
+                var chunkRotations = chunk.GetNativeArray(ref RotationTypeHandle);
+                var chunkPostRotation = chunk.GetNativeArray(ref PostRotationTypeHandle);
+                var chunkRotationPivots = chunk.GetNativeArray(ref RotationPivotTypeHandle);
+                var chunkCompositeRotations = chunk.GetNativeArray(ref CompositeRotationTypeHandle);
 
-                var hasRotationPivotTranslation = chunk.Has(RotationPivotTranslationTypeHandle);
-                var hasRotation = chunk.Has(RotationTypeHandle);
-                var hasPostRotation = chunk.Has(PostRotationTypeHandle);
-                var hasRotationPivot = chunk.Has(RotationPivotTypeHandle);
+                var hasRotationPivotTranslation = chunk.Has(ref RotationPivotTranslationTypeHandle);
+                var hasRotation = chunk.Has(ref RotationTypeHandle);
+                var hasPostRotation = chunk.Has(ref PostRotationTypeHandle);
+                var hasRotationPivot = chunk.Has(ref RotationPivotTypeHandle);
                 var count = chunk.Count;
 
                 var hasAnyRotation = hasRotation || hasPostRotation;
@@ -71,7 +72,7 @@ namespace UnityS.Transforms
                 // 001
                 if (!hasAnyRotation && !hasRotationPivotTranslation && hasRotationPivot)
                 {
-                    var didChange = chunk.DidChange(RotationPivotTypeHandle, LastSystemVersion);
+                    var didChange = chunk.DidChange(ref RotationPivotTypeHandle, LastSystemVersion);
                     if (!didChange)
                         return;
 
@@ -82,7 +83,7 @@ namespace UnityS.Transforms
                 // 010
                 else if (!hasAnyRotation && hasRotationPivotTranslation && !hasRotationPivot)
                 {
-                    var didChange = chunk.DidChange(RotationPivotTranslationTypeHandle, LastSystemVersion);
+                    var didChange = chunk.DidChange(ref RotationPivotTranslationTypeHandle, LastSystemVersion);
                     if (!didChange)
                         return;
 
@@ -97,7 +98,7 @@ namespace UnityS.Transforms
                 // 011
                 else if (!hasAnyRotation && hasRotationPivotTranslation && hasRotationPivot)
                 {
-                    var didChange = chunk.DidChange(RotationPivotTranslationTypeHandle, LastSystemVersion);
+                    var didChange = chunk.DidChange(ref RotationPivotTranslationTypeHandle, LastSystemVersion);
                     if (!didChange)
                         return;
 
@@ -117,7 +118,7 @@ namespace UnityS.Transforms
                     // 01
                     if (!hasPostRotation && hasRotation)
                     {
-                        var didChange = chunk.DidChange(RotationTypeHandle, LastSystemVersion);
+                        var didChange = chunk.DidChange(ref RotationTypeHandle, LastSystemVersion);
                         if (!didChange)
                             return;
 
@@ -132,7 +133,7 @@ namespace UnityS.Transforms
                     // 10
                     else if (hasPostRotation && !hasRotation)
                     {
-                        var didChange = chunk.DidChange(PostRotationTypeHandle, LastSystemVersion);
+                        var didChange = chunk.DidChange(ref PostRotationTypeHandle, LastSystemVersion);
                         if (!didChange)
                             return;
 
@@ -147,8 +148,8 @@ namespace UnityS.Transforms
                     // 11
                     else if (hasPostRotation && hasRotation)
                     {
-                        var didChange = chunk.DidChange(PostRotationTypeHandle, LastSystemVersion) ||
-                            chunk.DidChange(RotationTypeHandle, LastSystemVersion);
+                        var didChange = chunk.DidChange(ref PostRotationTypeHandle, LastSystemVersion) ||
+                            chunk.DidChange(ref RotationTypeHandle, LastSystemVersion);
                         if (!didChange)
                             return;
 
@@ -168,8 +169,8 @@ namespace UnityS.Transforms
                     // 01
                     if (!hasPostRotation && hasRotation)
                     {
-                        var didChange = chunk.DidChange(RotationTypeHandle, LastSystemVersion) ||
-                            chunk.DidChange(RotationPivotTypeHandle, LastSystemVersion);
+                        var didChange = chunk.DidChange(ref RotationTypeHandle, LastSystemVersion) ||
+                            chunk.DidChange(ref RotationPivotTypeHandle, LastSystemVersion);
                         if (!didChange)
                             return;
 
@@ -186,8 +187,8 @@ namespace UnityS.Transforms
                     // 10
                     else if (hasPostRotation && !hasRotation)
                     {
-                        var didChange = chunk.DidChange(PostRotationTypeHandle, LastSystemVersion) ||
-                            chunk.DidChange(RotationPivotTypeHandle, LastSystemVersion);
+                        var didChange = chunk.DidChange(ref PostRotationTypeHandle, LastSystemVersion) ||
+                            chunk.DidChange(ref RotationPivotTypeHandle, LastSystemVersion);
                         if (!didChange)
                             return;
 
@@ -204,9 +205,9 @@ namespace UnityS.Transforms
                     // 11
                     else if (hasPostRotation && hasRotation)
                     {
-                        var didChange = chunk.DidChange(PostRotationTypeHandle, LastSystemVersion) ||
-                            chunk.DidChange(RotationTypeHandle, LastSystemVersion) ||
-                            chunk.DidChange(RotationPivotTypeHandle, LastSystemVersion);
+                        var didChange = chunk.DidChange(ref PostRotationTypeHandle, LastSystemVersion) ||
+                            chunk.DidChange(ref RotationTypeHandle, LastSystemVersion) ||
+                            chunk.DidChange(ref RotationPivotTypeHandle, LastSystemVersion);
                         if (!didChange)
                             return;
 
@@ -228,8 +229,8 @@ namespace UnityS.Transforms
                     // 01
                     if (!hasPostRotation && hasRotation)
                     {
-                        var didChange = chunk.DidChange(RotationTypeHandle, LastSystemVersion) ||
-                            chunk.DidChange(RotationPivotTranslationTypeHandle, LastSystemVersion);
+                        var didChange = chunk.DidChange(ref RotationTypeHandle, LastSystemVersion) ||
+                            chunk.DidChange(ref RotationPivotTranslationTypeHandle, LastSystemVersion);
                         if (!didChange)
                             return;
 
@@ -245,8 +246,8 @@ namespace UnityS.Transforms
                     // 10
                     else if (hasPostRotation && !hasRotation)
                     {
-                        var didChange = chunk.DidChange(PostRotationTypeHandle, LastSystemVersion) ||
-                            chunk.DidChange(RotationPivotTranslationTypeHandle, LastSystemVersion);
+                        var didChange = chunk.DidChange(ref PostRotationTypeHandle, LastSystemVersion) ||
+                            chunk.DidChange(ref RotationPivotTranslationTypeHandle, LastSystemVersion);
                         if (!didChange)
                             return;
 
@@ -262,9 +263,9 @@ namespace UnityS.Transforms
                     // 11
                     else if (hasPostRotation && hasRotation)
                     {
-                        var didChange = chunk.DidChange(PostRotationTypeHandle, LastSystemVersion) ||
-                            chunk.DidChange(RotationPivotTranslationTypeHandle, LastSystemVersion) ||
-                            chunk.DidChange(RotationTypeHandle, LastSystemVersion);
+                        var didChange = chunk.DidChange(ref PostRotationTypeHandle, LastSystemVersion) ||
+                            chunk.DidChange(ref RotationPivotTranslationTypeHandle, LastSystemVersion) ||
+                            chunk.DidChange(ref RotationTypeHandle, LastSystemVersion);
                         if (!didChange)
                             return;
 
@@ -285,9 +286,9 @@ namespace UnityS.Transforms
                     // 01
                     if (!hasPostRotation && hasRotation)
                     {
-                        var didChange = chunk.DidChange(RotationTypeHandle, LastSystemVersion) ||
-                            chunk.DidChange(RotationPivotTranslationTypeHandle, LastSystemVersion) ||
-                            chunk.DidChange(RotationPivotTypeHandle, LastSystemVersion);
+                        var didChange = chunk.DidChange(ref RotationTypeHandle, LastSystemVersion) ||
+                            chunk.DidChange(ref RotationPivotTranslationTypeHandle, LastSystemVersion) ||
+                            chunk.DidChange(ref RotationPivotTypeHandle, LastSystemVersion);
                         if (!didChange)
                             return;
 
@@ -308,9 +309,9 @@ namespace UnityS.Transforms
                     // 10
                     else if (hasPostRotation && !hasRotation)
                     {
-                        var didChange = chunk.DidChange(PostRotationTypeHandle, LastSystemVersion) ||
-                            chunk.DidChange(RotationPivotTranslationTypeHandle, LastSystemVersion) ||
-                            chunk.DidChange(RotationPivotTypeHandle, LastSystemVersion);
+                        var didChange = chunk.DidChange(ref PostRotationTypeHandle, LastSystemVersion) ||
+                            chunk.DidChange(ref RotationPivotTranslationTypeHandle, LastSystemVersion) ||
+                            chunk.DidChange(ref RotationPivotTypeHandle, LastSystemVersion);
                         if (!didChange)
                             return;
 
@@ -331,10 +332,10 @@ namespace UnityS.Transforms
                     // 11
                     else if (hasPostRotation && hasRotation)
                     {
-                        var didChange = chunk.DidChange(PostRotationTypeHandle, LastSystemVersion) ||
-                            chunk.DidChange(RotationTypeHandle, LastSystemVersion) ||
-                            chunk.DidChange(RotationPivotTranslationTypeHandle, LastSystemVersion) ||
-                            chunk.DidChange(RotationPivotTypeHandle, LastSystemVersion);
+                        var didChange = chunk.DidChange(ref PostRotationTypeHandle, LastSystemVersion) ||
+                            chunk.DidChange(ref RotationTypeHandle, LastSystemVersion) ||
+                            chunk.DidChange(ref RotationPivotTranslationTypeHandle, LastSystemVersion) ||
+                            chunk.DidChange(ref RotationPivotTypeHandle, LastSystemVersion);
                         if (!didChange)
                             return;
 
@@ -375,7 +376,7 @@ namespace UnityS.Transforms
             });
         }
 
-        protected override JobHandle OnUpdate(JobHandle inputDeps)
+        protected override void OnUpdate()
         {
             var compositeRotationType = GetComponentTypeHandle<CompositeRotation>(false);
             var rotationType = GetComponentTypeHandle<Rotation>(true);
@@ -391,9 +392,7 @@ namespace UnityS.Transforms
                 RotationPivotTypeHandle = rotationPivotType,
                 RotationPivotTranslationTypeHandle = rotationPivotTranslationType,
                 LastSystemVersion = LastSystemVersion
-            };
-            var toCompositeRotationJobHandle = toCompositeRotationJob.Schedule(m_Group, inputDeps);
-            return toCompositeRotationJobHandle;
+            }.ScheduleParallel(m_Group, Dependency);
         }
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using Unity.Burst;
+using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
@@ -8,7 +9,7 @@ using UnityS.Mathematics;
 
 namespace UnityS.Transforms
 {
-    public abstract class LocalToParentSystem : JobComponentSystem
+    public abstract partial class LocalToParentSystem : SystemBase
     {
         private EntityQuery m_RootsGroup;
         private EntityQueryMask m_LocalToWorldWriteGroupMask;
@@ -19,13 +20,13 @@ namespace UnityS.Transforms
         {
             [ReadOnly] public ComponentTypeHandle<LocalToWorld> LocalToWorldTypeHandle;
             [ReadOnly] public BufferTypeHandle<Child> ChildTypeHandle;
-            [ReadOnly] public BufferFromEntity<Child> ChildFromEntity;
-            [ReadOnly] public ComponentDataFromEntity<LocalToParent> LocalToParentFromEntity;
+            [ReadOnly] public BufferLookup<Child> ChildFromEntity;
+            [ReadOnly] public ComponentLookup<LocalToParent> LocalToParentFromEntity;
             [ReadOnly] public EntityQueryMask LocalToWorldWriteGroupMask;
             public uint LastSystemVersion;
 
             [NativeDisableContainerSafetyRestriction]
-            public ComponentDataFromEntity<LocalToWorld> LocalToWorldFromEntity;
+            public ComponentLookup<LocalToWorld> LocalToWorldFromEntity;
 
             void ChildLocalToWorld(float4x4 parentLocalToWorld, Entity entity, bool updateChildrenTransform)
             {
@@ -34,7 +35,7 @@ namespace UnityS.Transforms
 
                 float4x4 localToWorldMatrix;
 
-                if (updateChildrenTransform && LocalToWorldWriteGroupMask.Matches(entity))
+                if (updateChildrenTransform && LocalToWorldWriteGroupMask.MatchesIgnoreFilter(entity))
                 {
                     var localToParent = LocalToParentFromEntity[entity];
                     localToWorldMatrix = math.mul(parentLocalToWorld, localToParent.Value);
@@ -45,7 +46,7 @@ namespace UnityS.Transforms
                     localToWorldMatrix = LocalToWorldFromEntity[entity].Value;
                 }
 
-                if (ChildFromEntity.HasComponent(entity))
+                if (ChildFromEntity.HasBuffer(entity))
                 {
                     var children = ChildFromEntity[entity];
                     for (int i = 0; i < children.Length; i++)
@@ -55,14 +56,14 @@ namespace UnityS.Transforms
                 }
             }
 
-            public void Execute(ArchetypeChunk chunk, int index, int entityOffset)
-            {
+			public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask)
+			{
                 bool updateChildrenTransform =
-                    chunk.DidChange<LocalToWorld>(LocalToWorldTypeHandle, LastSystemVersion) ||
-                    chunk.DidChange<Child>(ChildTypeHandle, LastSystemVersion);
+                    chunk.DidChange<LocalToWorld>(ref LocalToWorldTypeHandle, LastSystemVersion) ||
+                    chunk.DidChange<Child>(ref ChildTypeHandle, LastSystemVersion);
 
-                var chunkLocalToWorld = chunk.GetNativeArray(LocalToWorldTypeHandle);
-                var chunkChildren = chunk.GetBufferAccessor(ChildTypeHandle);
+                var chunkLocalToWorld = chunk.GetNativeArray(ref LocalToWorldTypeHandle);
+                var chunkChildren = chunk.GetBufferAccessor(ref ChildTypeHandle);
                 for (int i = 0; i < chunk.Count; i++)
                 {
                     var localToWorldMatrix = chunkLocalToWorld[i].Value;
@@ -91,7 +92,7 @@ namespace UnityS.Transforms
                 Options = EntityQueryOptions.FilterWriteGroup
             });
 
-            m_LocalToWorldWriteGroupMask = EntityManager.GetEntityQueryMask(GetEntityQuery(new EntityQueryDesc
+            m_LocalToWorldWriteGroupMask = GetEntityQuery(new EntityQueryDesc
             {
                 All = new ComponentType[]
                 {
@@ -100,16 +101,16 @@ namespace UnityS.Transforms
                     ComponentType.ReadOnly<Parent>()
                 },
                 Options = EntityQueryOptions.FilterWriteGroup
-            }));
+            }).GetEntityQueryMask();
         }
 
-        protected override JobHandle OnUpdate(JobHandle inputDeps)
+        protected override void OnUpdate()
         {
             var localToWorldType = GetComponentTypeHandle<LocalToWorld>(true);
             var childType = GetBufferTypeHandle<Child>(true);
-            var childFromEntity = GetBufferFromEntity<Child>(true);
-            var localToParentFromEntity = GetComponentDataFromEntity<LocalToParent>(true);
-            var localToWorldFromEntity = GetComponentDataFromEntity<LocalToWorld>();
+            var childFromEntity = GetBufferLookup<Child>(true);
+            var localToParentFromEntity = GetComponentLookup<LocalToParent>(true);
+            var localToWorldFromEntity = GetComponentLookup<LocalToWorld>();
 
             var updateHierarchyJob = new UpdateHierarchy
             {
@@ -120,9 +121,7 @@ namespace UnityS.Transforms
                 LocalToWorldFromEntity = localToWorldFromEntity,
                 LocalToWorldWriteGroupMask = m_LocalToWorldWriteGroupMask,
                 LastSystemVersion = LastSystemVersion
-            };
-            var updateHierarchyJobHandle = updateHierarchyJob.Schedule(m_RootsGroup, inputDeps);
-            return updateHierarchyJobHandle;
+            }.ScheduleParallel(m_RootsGroup, Dependency);
         }
     }
 }

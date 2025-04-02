@@ -1,4 +1,5 @@
 using Unity.Burst;
+using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
@@ -29,7 +30,7 @@ namespace UnityS.Transforms
     // (or) LocalToParent = Translation * ParentScaleInverse * Rotation * CompositeScale
     // (or) LocalToParent = Translation * ParentScaleInverse * CompositeRotation * CompositeScale
 
-    public abstract class TRSToLocalToParentSystem : JobComponentSystem
+    public abstract partial class TRSToLocalToParentSystem : SystemBase
     {
         private EntityQuery m_Group;
 
@@ -46,39 +47,39 @@ namespace UnityS.Transforms
             public ComponentTypeHandle<LocalToParent> LocalToParentTypeHandle;
             public uint LastSystemVersion;
 
-            public void Execute(ArchetypeChunk chunk, int chunkIndex, int entityOffset)
-            {
+			public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask)
+			{
                 bool changed =
                     chunk.DidOrderChange(LastSystemVersion) ||
-                    chunk.DidChange(TranslationTypeHandle, LastSystemVersion) ||
-                    chunk.DidChange(RotationTypeHandle, LastSystemVersion) ||
-                    chunk.DidChange(CompositeRotationTypeHandle, LastSystemVersion) ||
-                    chunk.DidChange(ScaleTypeHandle, LastSystemVersion) ||
-                    chunk.DidChange(NonUniformScaleTypeHandle, LastSystemVersion) ||
-                    chunk.DidChange(CompositeScaleTypeHandle, LastSystemVersion) ||
-                    chunk.DidChange(ParentScaleInverseTypeHandle, LastSystemVersion);
+                    chunk.DidChange(ref TranslationTypeHandle, LastSystemVersion) ||
+                    chunk.DidChange(ref RotationTypeHandle, LastSystemVersion) ||
+                    chunk.DidChange(ref CompositeRotationTypeHandle, LastSystemVersion) ||
+                    chunk.DidChange(ref ScaleTypeHandle, LastSystemVersion) ||
+                    chunk.DidChange(ref NonUniformScaleTypeHandle, LastSystemVersion) ||
+                    chunk.DidChange(ref CompositeScaleTypeHandle, LastSystemVersion) ||
+                    chunk.DidChange(ref ParentScaleInverseTypeHandle, LastSystemVersion);
                 if (!changed)
                 {
                     return;
                 }
 
-                var chunkTranslations = chunk.GetNativeArray(TranslationTypeHandle);
-                var chunkNonUniformScales = chunk.GetNativeArray(NonUniformScaleTypeHandle);
-                var chunkScales = chunk.GetNativeArray(ScaleTypeHandle);
-                var chunkCompositeScales = chunk.GetNativeArray(CompositeScaleTypeHandle);
-                var chunkRotations = chunk.GetNativeArray(RotationTypeHandle);
-                var chunkCompositeRotations = chunk.GetNativeArray(CompositeRotationTypeHandle);
-                var chunkLocalToParent = chunk.GetNativeArray(LocalToParentTypeHandle);
-                var chunkParentScaleInverses = chunk.GetNativeArray(ParentScaleInverseTypeHandle);
-                var hasTranslation = chunk.Has(TranslationTypeHandle);
-                var hasCompositeRotation = chunk.Has(CompositeRotationTypeHandle);
-                var hasRotation = chunk.Has(RotationTypeHandle);
+                var chunkTranslations = chunk.GetNativeArray(ref TranslationTypeHandle);
+                var chunkNonUniformScales = chunk.GetNativeArray(ref NonUniformScaleTypeHandle);
+                var chunkScales = chunk.GetNativeArray(ref ScaleTypeHandle);
+                var chunkCompositeScales = chunk.GetNativeArray(ref CompositeScaleTypeHandle);
+                var chunkRotations = chunk.GetNativeArray(ref RotationTypeHandle);
+                var chunkCompositeRotations = chunk.GetNativeArray(ref CompositeRotationTypeHandle);
+                var chunkLocalToParent = chunk.GetNativeArray(ref LocalToParentTypeHandle);
+                var chunkParentScaleInverses = chunk.GetNativeArray(ref ParentScaleInverseTypeHandle);
+                var hasTranslation = chunk.Has(ref TranslationTypeHandle);
+                var hasCompositeRotation = chunk.Has(ref CompositeRotationTypeHandle);
+                var hasRotation = chunk.Has(ref RotationTypeHandle);
                 var hasAnyRotation = hasCompositeRotation || hasRotation;
-                var hasNonUniformScale = chunk.Has(NonUniformScaleTypeHandle);
-                var hasScale = chunk.Has(ScaleTypeHandle);
-                var hasCompositeScale = chunk.Has(CompositeScaleTypeHandle);
+                var hasNonUniformScale = chunk.Has(ref NonUniformScaleTypeHandle);
+                var hasScale = chunk.Has(ref ScaleTypeHandle);
+                var hasCompositeScale = chunk.Has(ref CompositeScaleTypeHandle);
                 var hasAnyScale = hasScale || hasNonUniformScale || hasCompositeScale;
-                var hasParentScaleInverse = chunk.Has(ParentScaleInverseTypeHandle);
+                var hasParentScaleInverse = chunk.Has(ref ParentScaleInverseTypeHandle);
                 var count = chunk.Count;
 
                 // #todo jump table when burst supports function pointers
@@ -505,7 +506,7 @@ namespace UnityS.Transforms
             });
         }
 
-        protected override JobHandle OnUpdate(JobHandle inputDeps)
+        protected override void OnUpdate()
         {
             var rotationType = GetComponentTypeHandle<Rotation>(true);
             var compositeRotationType = GetComponentTypeHandle<CompositeRotation>(true);
@@ -526,9 +527,7 @@ namespace UnityS.Transforms
                 ParentScaleInverseTypeHandle = parentScaleInverseType,
                 LocalToParentTypeHandle = localToWorldType,
                 LastSystemVersion = LastSystemVersion
-            };
-            var trsToLocalToParentJobHandle = trsToLocalToParentJob.Schedule(m_Group, inputDeps);
-            return trsToLocalToParentJobHandle;
+            }.ScheduleParallel(m_Group, Dependency);
         }
     }
 }

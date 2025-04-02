@@ -1,5 +1,6 @@
 using System;
 using Unity.Burst;
+using Unity.Burst.Intrinsics;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
@@ -23,7 +24,7 @@ namespace UnityS.Transforms
     // ParentScaleInverse = Parent.CompositeScale^-1
     // (or) ParentScaleInverse = Parent.Scale^-1
     // (or) ParentScaleInverse = Parent.NonUniformScale^-1
-    public abstract class ParentScaleInverseSystem : JobComponentSystem
+    public abstract partial class ParentScaleInverseSystem : SystemBase
     {
         private EntityQuery m_Group;
 
@@ -34,24 +35,24 @@ namespace UnityS.Transforms
             [ReadOnly] public ComponentTypeHandle<NonUniformScale> NonUniformScaleTypeHandle;
             [ReadOnly] public ComponentTypeHandle<CompositeScale> CompositeScaleTypeHandle;
             [ReadOnly] public BufferTypeHandle<Child> ChildTypeHandle;
-            [NativeDisableContainerSafetyRestriction] public ComponentDataFromEntity<ParentScaleInverse> ParentScaleInverseFromEntity;
+            [NativeDisableContainerSafetyRestriction] public ComponentLookup<ParentScaleInverse> ParentScaleInverseFromEntity;
             public uint LastSystemVersion;
 
-            public void Execute(ArchetypeChunk chunk, int chunkIndex, int firstEntityIndex)
+            public void Execute(in ArchetypeChunk chunk, int unfilteredChunkIndex, bool useEnabledMask, in v128 chunkEnabledMask)
             {
-                var hasScale = chunk.Has(ScaleTypeHandle);
-                var hasNonUniformScale = chunk.Has(NonUniformScaleTypeHandle);
-                var hasCompositeScale = chunk.Has(CompositeScaleTypeHandle);
+                var hasScale = chunk.Has(ref ScaleTypeHandle);
+                var hasNonUniformScale = chunk.Has(ref NonUniformScaleTypeHandle);
+                var hasCompositeScale = chunk.Has(ref CompositeScaleTypeHandle);
 
                 if (hasCompositeScale)
                 {
-                    var didChange = chunk.DidChange(CompositeScaleTypeHandle, LastSystemVersion) ||
-                        chunk.DidChange(ChildTypeHandle, LastSystemVersion);
+                    var didChange = chunk.DidChange(ref CompositeScaleTypeHandle, LastSystemVersion) ||
+                        chunk.DidChange(ref ChildTypeHandle, LastSystemVersion);
                     if (!didChange)
                         return;
 
-                    var chunkCompositeScales = chunk.GetNativeArray(CompositeScaleTypeHandle);
-                    var chunkChildren = chunk.GetBufferAccessor(ChildTypeHandle);
+                    var chunkCompositeScales = chunk.GetNativeArray(ref CompositeScaleTypeHandle);
+                    var chunkChildren = chunk.GetBufferAccessor(ref ChildTypeHandle);
                     for (var i = 0; i < chunk.Count; i++)
                     {
                         var inverseScale = math.inverse(chunkCompositeScales[i].Value);
@@ -68,13 +69,13 @@ namespace UnityS.Transforms
                 }
                 else if (hasScale)
                 {
-                    var didChange = chunk.DidChange(ScaleTypeHandle, LastSystemVersion) ||
-                        chunk.DidChange(ChildTypeHandle, LastSystemVersion);
+                    var didChange = chunk.DidChange(ref ScaleTypeHandle, LastSystemVersion) ||
+                        chunk.DidChange(ref ChildTypeHandle, LastSystemVersion);
                     if (!didChange)
                         return;
 
-                    var chunkScales = chunk.GetNativeArray(ScaleTypeHandle);
-                    var chunkChildren = chunk.GetBufferAccessor(ChildTypeHandle);
+                    var chunkScales = chunk.GetNativeArray(ref ScaleTypeHandle);
+                    var chunkChildren = chunk.GetBufferAccessor(ref ChildTypeHandle);
                     for (var i = 0; i < chunk.Count; i++)
                     {
                         var inverseScale = float4x4.Scale(sfloat.One / chunkScales[i].Value);
@@ -91,13 +92,13 @@ namespace UnityS.Transforms
                 }
                 else // if (hasNonUniformScale)
                 {
-                    var didChange = chunk.DidChange(NonUniformScaleTypeHandle, LastSystemVersion) ||
-                        chunk.DidChange(ChildTypeHandle, LastSystemVersion);
+                    var didChange = chunk.DidChange(ref NonUniformScaleTypeHandle, LastSystemVersion) ||
+                        chunk.DidChange(ref ChildTypeHandle, LastSystemVersion);
                     if (!didChange)
                         return;
 
-                    var chunkNonUniformScales = chunk.GetNativeArray(NonUniformScaleTypeHandle);
-                    var chunkChildren = chunk.GetBufferAccessor(ChildTypeHandle);
+                    var chunkNonUniformScales = chunk.GetNativeArray(ref NonUniformScaleTypeHandle);
+                    var chunkChildren = chunk.GetBufferAccessor(ref ChildTypeHandle);
                     for (var i = 0; i < chunk.Count; i++)
                     {
                         var inverseScale = float4x4.Scale(sfloat.One / chunkNonUniformScales[i].Value);
@@ -133,7 +134,7 @@ namespace UnityS.Transforms
             });
         }
 
-        protected override JobHandle OnUpdate(JobHandle inputDeps)
+        protected override void OnUpdate()
         {
             var toParentScaleInverseJob = new ToChildParentScaleInverse
             {
@@ -141,11 +142,9 @@ namespace UnityS.Transforms
                 NonUniformScaleTypeHandle = GetComponentTypeHandle<NonUniformScale>(true),
                 CompositeScaleTypeHandle = GetComponentTypeHandle<CompositeScale>(true),
                 ChildTypeHandle = GetBufferTypeHandle<Child>(true),
-                ParentScaleInverseFromEntity = GetComponentDataFromEntity<ParentScaleInverse>(),
+                ParentScaleInverseFromEntity = GetComponentLookup<ParentScaleInverse>(),
                 LastSystemVersion = LastSystemVersion
-            };
-            var toParentScaleInverseJobHandle = toParentScaleInverseJob.Schedule(m_Group, inputDeps);
-            return toParentScaleInverseJobHandle;
+            }.ScheduleParallel(m_Group, Dependency);
         }
     }
 }
